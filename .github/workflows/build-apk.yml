@@ -30,8 +30,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: 装 Android SDK
-        uses: android-actions/setup-android@v3
+      # 不用 android-actions/setup-android：它会执行 `sdkmanager tools`，
+      # 而 runner 预装的 cmdline-tools 16.0 已移除旧的 tools 包，会直接 409 报错退出。
+      # ubuntu-latest 自带 Android SDK，这里直接用它的 sdkmanager 装需要的组件即可。
 
       # 这个工程没有 gradle-wrapper.jar（本机由 Android Studio 自动补）。
       # CI 直接装一个独立的 Gradle 8.2 并加到 PATH，绕开 wrapper，构建更可靠。
@@ -49,8 +50,17 @@ jobs:
       - name: 校验题库 JSON
         run: node scripts/validate-questions.js question-bank/questions.json app/src/main/assets/questions.json
 
-      - name: 准备 SDK 组件
-        run: sdkmanager --install "platforms;android-34" "build-tools;34.0.0" > /dev/null || true
+      - name: 准备 Android SDK
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SM=$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager -print -quit 2>/dev/null)
+          if [ -z "$SM" ]; then SM="$SDK_ROOT/tools/bin/sdkmanager"; fi
+          test -x "$SM" || { echo "找不到 sdkmanager: $SM"; exit 1; }
+          echo "sdkmanager: $SM"
+          yes | "$SM" --licenses > /dev/null 2>&1 || true
+          "$SM" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          echo "--- Gradle ---"
+          gradle --version
 
       # 没配正式签名时，AGP 会生成 debug.keystore。缓存它，保证每次构建的签名一致，
       # 否则电视上覆盖安装会报「应用未安装/签名冲突」。
