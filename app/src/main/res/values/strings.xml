@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">电视安全锁</string>
+    <string name="accessibility_label">电视安全锁 · 按键拦截</string>
+    <string name="accessibility_desc">用于在答题时拦截遥控器主页键与返回键，防止绕过家长管控。</string>
+</resources>

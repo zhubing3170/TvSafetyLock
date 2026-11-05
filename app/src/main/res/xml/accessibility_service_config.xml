@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  无障碍服务配置：
+  - canRequestFilterKeyEvents = true  → 允许拦截硬件按键（遥控器主页键/返回键）
+  - flagRequestFilterKeyEvents        → 开启按键过滤
+  - android:canRetrieveWindowContent  → 关掉，我们不看屏幕内容，只拦按键，降低隐私敏感度
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRequestFilterKeyEvents|flagRetrieveInteractiveWindows"
+    android:canRequestFilterKeyEvents="true"
+    android:canRetrieveWindowContent="false"
+    android:description="@string/accessibility_desc"
+    android:notificationTimeout="100" />

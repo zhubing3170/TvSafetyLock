@@ -1,0 +1,128 @@
+name: 打包电视安全锁 APK
+
+# 推送代码 / 打 v 开头的 tag / 手动点按钮，都会自动出 APK。
+# 产出的 APK 在 Actions 页面右上角的 Artifacts 里下载，打 tag 时还会自动建 Release。
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 拉代码
+        uses: actions/checkout@v4
+
+      - name: 装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 装 Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 这个工程没有 gradle-wrapper.jar（本机由 Android Studio 自动补）。
+      # CI 直接装一个独立的 Gradle 8.2 并加到 PATH，绕开 wrapper，构建更可靠。
+      - name: 装 Gradle 8.2
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2'
+          cache-read-only: false
+
+      - name: 装 Node（只用来校验题库）
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 校验题库 JSON
+        run: node scripts/validate-questions.js question-bank/questions.json app/src/main/assets/questions.json
+
+      - name: 准备 SDK 组件
+        run: sdkmanager --install "platforms;android-34" "build-tools;34.0.0" > /dev/null || true
+
+      # 没配正式签名时，AGP 会生成 debug.keystore。缓存它，保证每次构建的签名一致，
+      # 否则电视上覆盖安装会报「应用未安装/签名冲突」。
+      - name: 固定调试签名
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: tvlock-debug-keystore-${{ github.repository }}-v1
+
+      - name: 写入正式签名（如果配了 Secrets）
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > app/my-release-key.jks
+            echo "已写入正式签名"
+          else
+            echo "未配置 KEYSTORE_BASE64，使用缓存的调试签名"
+          fi
+
+      # 把题库地址直接烧进 APK：主地址 GitHub raw，备用地址 jsDelivr（国内电视更容易通）。
+      # 用 default_branch 而不是 commit SHA，这样以后往 main 推题库，旧 APK 也能拉到新题。
+      - name: 编译 APK
+        env:
+          KS_PWD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PWD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          LICENSE_KEY: ${{ secrets.LICENSE_SECRET }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          RAW="https://raw.githubusercontent.com/$REPO/$BRANCH/question-bank/questions.json"
+          CDN="https://cdn.jsdelivr.net/gh/$REPO@$BRANCH/question-bank/questions.json"
+          ARGS=(-PquestionBankUrl="$RAW" -PquestionBankUrlMirror="$CDN" --no-daemon --stacktrace)
+          if [ -n "$KS_PWD" ]; then
+            ARGS+=(-PKEYSTORE_PASSWORD="$KS_PWD" -PKEY_PASSWORD="$KEY_PWD" -PKEY_ALIAS="$KEY_ALIAS")
+          fi
+          # 激活码密钥只从 Secret 注入，绝不写进公开源码
+          if [ -n "$LICENSE_KEY" ]; then
+            ARGS+=(-PLICENSE_SECRET="$LICENSE_KEY")
+            echo "已注入激活码密钥"
+          else
+            echo "未配置 LICENSE_SECRET，本次使用演示密钥（仅适合自测，正式发版前请配置）"
+          fi
+          echo "题库主地址: $RAW"
+          echo "题库备用地址: $CDN"
+          gradle assembleDebug assembleRelease "${ARGS[@]}"
+
+      - name: 整理产物
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk out/TvSafetyLock-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk out/TvSafetyLock-release.apk
+          cp out/TvSafetyLock-release.apk out/tvlock.apk
+          ls -lh out
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TvSafetyLock-APK-${{ github.run_number }}
+          path: out/*.apk
+          retention-days: 30
+
+      - name: 发布 Release（打 tag 时）
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+          generate_release_notes: true
+
+      - name: 输出说明
+        run: |
+          echo "### APK 已打包" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "题库地址已写进包里：以后改 question-bank/questions.json 并把 version +1 推送，电视上点「立即更新题库」即可生效，不用重装。" >> "$GITHUB_STEP_SUMMARY"

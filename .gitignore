@@ -1,0 +1,26 @@
+# Android Studio / Gradle
+*.iml
+.gradle/
+.idea/
+local.properties
+build/
+app/build/
+captures/
+.externalNativeBuild
+.cxx/
+
+# 签名文件绝对不能传上 GitHub
+*.jks
+*.keystore
+app/my-release-key.jks
+
+# 构建产物
+*.apk
+*.aab
+out/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 注意：gradle/wrapper/gradle-wrapper.jar 不要忽略，以后生成了要提交

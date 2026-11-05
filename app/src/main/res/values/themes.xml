@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主界面主题：跟随系统，无标题栏 -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFF7F9FC</item>
+        <item name="android:statusBarColor">#FF1D4ED8</item>
+    </style>
+
+    <!-- 答题页主题：全屏、黑底、无标题栏、无状态栏 -->
+    <style name="QuizTheme" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">#FF0B1220</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <!-- 让答题页浮在系统桌面之上 -->
+        <item name="android:windowIsFloating">false</item>
+    </style>
+</resources>

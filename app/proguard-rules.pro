@@ -1,0 +1,2 @@
+-keep class com.tvsafelock.app.** { *; }
+-keepattributes SourceFile,LineNumberTable
